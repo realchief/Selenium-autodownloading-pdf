@@ -6,6 +6,7 @@ from time import sleep
 import os
 from dateutil.parser import parse
 
+
 class WashGasSpider(Spider):
     name = "washgas"
     start_urls = [
@@ -70,7 +71,6 @@ class WashGasSpider(Spider):
             try:
                 if self.driver.current_url != 'https://eservice.washgas.com/Standard/BillPayments/Pages/BillingPaymentHistory.aspx':
                     self.driver.get('https://eservice.washgas.com/Standard/BillPayments/Pages/BillingPaymentHistory.aspx')
-                # sel = self.driver.find_element_by_xpath('//select[@class="account-dropdown"]')
 
                 val = self.driver.find_element_by_xpath('//select[@class="account-dropdown"]//option[@selected]').get_attribute('value')
                 date_val = self.driver.find_elements_by_xpath(
@@ -88,8 +88,6 @@ class WashGasSpider(Spider):
                         print '--------- downloading ---'
                         yield self.download_page(account_number, bill_date, account_name)
 
-                # bill_date = re.search(r'billDate=(.*?)&', pdf_link)
-                # bill_date = self.date_to_string(bill_date.group(1)) if bill_date else None
                 if val not in self.passed_vals:
                     self.passed_vals.append(val)
                 options = self.driver.find_elements_by_xpath('//select[@class="account-dropdown"]//option[not(@selected)]')
