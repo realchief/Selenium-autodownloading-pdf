@@ -2,12 +2,9 @@ from __future__ import division, absolute_import, unicode_literals
 from scrapy import Spider, FormRequest, Request
 import re
 from selenium import webdriver
-import os
 from time import sleep
-import requests
-
 import os
-
+from dateutil.parser import parse
 
 class WashGasSpider(Spider):
     name = "washgas"
@@ -71,24 +68,30 @@ class WashGasSpider(Spider):
 
         while True:
             try:
-                if self.driver.current_url != 'https://eservice.washgas.com/Standard/BillPayments/Pages/CurrentBill.aspx':
-                    self.driver.get('https://eservice.washgas.com/Standard/BillPayments/Pages/CurrentBill.aspx')
+                if self.driver.current_url != 'https://eservice.washgas.com/Standard/BillPayments/Pages/BillingPaymentHistory.aspx':
+                    self.driver.get('https://eservice.washgas.com/Standard/BillPayments/Pages/BillingPaymentHistory.aspx')
                 # sel = self.driver.find_element_by_xpath('//select[@class="account-dropdown"]')
+
                 val = self.driver.find_element_by_xpath('//select[@class="account-dropdown"]//option[@selected]').get_attribute('value')
+                date_val = self.driver.find_elements_by_xpath(
+                    '//select[@id="ctl00_SPWebPartManager1_g_bed3be53_cfc8_4589_ae53_958f96e4a203_ctl00_ddlBillDate"]//option')
 
-                title = self.driver.find_element_by_xpath('//select[@class="account-dropdown"]//option[@selected]').text
-                pdf_link = self.driver.find_element_by_xpath('//iframe').get_attribute('src')
-                account_number = re.search(r'acctNum=(\d+)&', pdf_link)
-                account_number = account_number.group(1) if account_number else None
+                for v in date_val:
+                    bill_date = v.get_attribute('value').split(';')[-1]
 
-                bill_date = re.search(r'billDate=(.*?)&', pdf_link)
-                bill_date = self.date_to_string(bill_date.group(1)) if bill_date else None
-                if pdf_link and val not in self.passed_vals:
+                    title = self.driver.find_element_by_xpath('//select[@class="account-dropdown"]//option[@selected]').text
+                    title_list = title.split('  ')
+                    account_infos = filter(None, title_list)
+                    account_name = account_infos[0]
+                    account_number = account_infos[1]
+                    if '{}-{}'.format(account_number, bill_date) not in self.logs:
+                        print '--------- downloading ---'
+                        yield self.download_page(account_number, bill_date, account_name)
+
+                # bill_date = re.search(r'billDate=(.*?)&', pdf_link)
+                # bill_date = self.date_to_string(bill_date.group(1)) if bill_date else None
+                if val not in self.passed_vals:
                     self.passed_vals.append(val)
-                if '{}-{}'.format(account_number, bill_date) not in self.logs:
-                    print '--------- downloading ---'
-                    yield self.download_page(pdf_link, account_number, bill_date, title)
-
                 options = self.driver.find_elements_by_xpath('//select[@class="account-dropdown"]//option[not(@selected)]')
                 print options
                 for opt in options:
@@ -101,19 +104,19 @@ class WashGasSpider(Spider):
                 sleep(10)
                 continue
 
-    def download_page(self, pdf_link, account_number=None, bill_date=None, title=None):
-        raw_pdf = requests.get(pdf_link).content
-        file_name = '{}-{}-{}.pdf'.format(self.download_directory, title, bill_date)
+    def download_page(self, account_number=None, bill_date=None, account_name=None):
 
-        with open(file_name, 'wb') as f:
-            f.write(raw_pdf)
-            self.logger.info('{} is downloaded successfully'.format(title))
-            f.close()
+        # raw_pdf = requests.get(pdf_link).content
+        file_name = '{} {} {}.pdf'.format(account_number, account_name, bill_date)
+        print file_name
+        # with open(file_name, 'wb') as f:
+        #     # f.write(raw_pdf)
+        #     self.logger.info('{} is downloaded successfully'.format(account_name))
+        #     f.close()
         self.write_logs('{}-{}'.format(account_number, bill_date))
         return {
             'file_name': file_name,
-            'file_url': pdf_link,
-            'title': title,
+            'account_name': account_name,
             'account_number': account_number,
             'bill_date': bill_date
         }
