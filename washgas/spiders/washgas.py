@@ -5,7 +5,7 @@ from selenium import webdriver
 from time import sleep
 import os
 from dateutil.parser import parse
-
+import shutil
 
 class WashGasSpider(Spider):
     name = "washgas"
@@ -27,7 +27,7 @@ class WashGasSpider(Spider):
 
         cwd = os.getcwd().replace("\\", "//").replace('spiders', '')
         opt = webdriver.ChromeOptions()
-        # opt.add_argument('--headless')
+        opt.add_argument('--headless')
         self.driver = webdriver.Chrome(executable_path='{}/chromedriver.exe'.format(cwd), chrome_options=opt)
 
         with open('{}/scrapy.log'.format(cwd), 'r') as f:
@@ -76,15 +76,18 @@ class WashGasSpider(Spider):
                 date_val = self.driver.find_elements_by_xpath(
                     '//select[@id="ctl00_SPWebPartManager1_g_bed3be53_cfc8_4589_ae53_958f96e4a203_ctl00_ddlBillDate"]//option')
 
-                for v in date_val:
-                    bill_date = v.get_attribute('value').split(';')[-1]
+                for i in range(0, len(date_val)):
+                    v = date_val[i]
+                    v.click()
+                    v_value = v.get_attribute('value')
 
+                    bill_date = v.get_attribute('value').split(';')[-1]
                     title = self.driver.find_element_by_xpath('//select[@class="account-dropdown"]//option[@selected]').text
                     title_list = title.split('  ')
                     account_infos = filter(None, title_list)
                     account_name = account_infos[0]
                     account_number = account_infos[1]
-                    if '{}-{}'.format(account_number, bill_date) not in self.logs:
+                    if '{}-{}'.format(account_number, bill_date, account_name) not in self.logs:
                         print '--------- downloading ---'
                         yield self.download_page(account_number, bill_date, account_name)
 
@@ -104,14 +107,13 @@ class WashGasSpider(Spider):
 
     def download_page(self, account_number=None, bill_date=None, account_name=None):
 
-        # raw_pdf = requests.get(pdf_link).content
-        file_name = '{} {} {}.pdf'.format(account_number, account_name, bill_date)
+        file_name = '{}-{}-{}.pdf'.format(account_number, account_name, bill_date)
         print file_name
-        # with open(file_name, 'wb') as f:
-        #     # f.write(raw_pdf)
-        #     self.logger.info('{} is downloaded successfully'.format(account_name))
-        #     f.close()
-        self.write_logs('{}-{}'.format(account_number, bill_date))
+        print_btn = self.driver.find_elements_by_xpath('//input[@value="View Printable Bill"]')[0]
+        print_btn.click()
+        os.rename('C:/Users/webguru/Downloads/PDF_Bill.pdf', 'C:/Users/webguru/Downloads/' + file_name)
+
+        self.write_logs('{}-{}-{}'.format(account_number, account_name, bill_date))
         return {
             'file_name': file_name,
             'account_name': account_name,
@@ -124,7 +126,8 @@ class WashGasSpider(Spider):
         return ''.join([i.zfill(2) for i in d])
 
     def write_logs(self, bill_id):
-        with open('scrapy.log', 'a') as f:
+        cwd = os.getcwd().replace("\\", "//").replace('spiders', '')
+        with open('{}/scrapy.log'.format(cwd), 'a') as f:
             f.write(bill_id + '\n')
             f.close()
         self.logs.append(bill_id)
